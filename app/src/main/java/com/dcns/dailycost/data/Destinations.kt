@@ -21,8 +21,10 @@ import com.dcns.dailycost.foundation.nav_type.WalletsScreenModeNavType
 object DestinationRoute {
 	const val CHANGE_LANGUAGE = "change_language"
 	const val RECENT_ACTIVITY = "recent_activity"
+	const val COLOR_PICKER = "color_picker"
 	const val NOTIFICATION = "notification"
 	const val TRANSACTIONS = "transactions"
+	const val ICON_PICKER = "icon_picker"
 	const val TRANSACTION = "transaction"
 	const val CATEGORIES = "categories"
 	const val ONBOARDING = "onboarding"
@@ -45,7 +47,7 @@ object DestinationArgument {
 	const val TRANSACTION_TYPE = "transaction_type"
 	const val CATEGORY_ID = "category_id"
 	const val WALLET_ID = "wallet_id"
-	const val ACTION_MODE = "transaction_mode"
+	const val ACTION_MODE = "action_mode"
 	const val CATEGORIES_SCREEN_MODE = "category_screen_mode"
 	const val WALLETS_SCREEN_MODE = "wallets_screen_mode"
 }
@@ -254,25 +256,17 @@ object TopLevelDestinations {
 		/**
 		 * Required argument:
 		 * - [DestinationArgument.CATEGORIES_SCREEN_MODE]
-		 *
-		 * If [DestinationArgument.CATEGORIES_SCREEN_MODE] is [CategoriesScreenMode.SelectCategory]:
-		 * - [DestinationArgument.CATEGORY_ID]
 		 */
 		val categories = TopLevelDestination(
 			icon = R.drawable.ic_pie_chart,
 			title = R.string.categories,
 			subtitle = R.string.manage_categories_change_icon_color,
 			route = "${DestinationRoute.CATEGORIES}?" +
-				"${DestinationArgument.CATEGORIES_SCREEN_MODE}={${DestinationArgument.CATEGORIES_SCREEN_MODE}}&" +
-				"${DestinationArgument.CATEGORY_ID}={${DestinationArgument.CATEGORY_ID}}",
+				"${DestinationArgument.CATEGORIES_SCREEN_MODE}={${DestinationArgument.CATEGORIES_SCREEN_MODE}}",
 			arguments = listOf(
 				navArgument(DestinationArgument.CATEGORIES_SCREEN_MODE) {
 					type = NavType.CategoriesScreenModeNavType
 					defaultValue = CategoriesScreenMode.CategoryList
-				},
-				navArgument(DestinationArgument.CATEGORY_ID) {
-					type = NavType.IntType
-					defaultValue = -1
 				}
 			)
 		)
@@ -280,22 +274,14 @@ object TopLevelDestinations {
 		/**
 		 * Required argument:
 		 * - [DestinationArgument.WALLETS_SCREEN_MODE]
-		 *
-		 * If [DestinationArgument.WALLETS_SCREEN_MODE] is [WalletsScreenMode.SelectWallet]:
-		 * - [DestinationArgument.WALLET_ID]
 		 */
 		val wallets = TopLevelDestination(
 			route = "${DestinationRoute.WALLETS}?" +
-				"${DestinationArgument.WALLETS_SCREEN_MODE}={${DestinationArgument.WALLETS_SCREEN_MODE}}&" +
-				"${DestinationArgument.WALLET_ID}={${DestinationArgument.WALLET_ID}}",
+				"${DestinationArgument.WALLETS_SCREEN_MODE}={${DestinationArgument.WALLETS_SCREEN_MODE}}",
 			arguments = listOf(
 				navArgument(DestinationArgument.WALLETS_SCREEN_MODE) {
 					type = NavType.WalletsScreenModeNavType
 					defaultValue = WalletsScreenMode.WalletList
-				},
-				navArgument(DestinationArgument.WALLET_ID) {
-					type = NavType.IntType
-					defaultValue = WalletType.Cash.ordinal
 				}
 			)
 		)
@@ -358,6 +344,14 @@ object TopLevelDestinations {
 					uriPattern = "${Constant.APP_DEEP_LINK_SCHEME}://${Constant.APP_DEEP_LINK_HOST}/${DestinationRoute.NOTIFICATION}"
 				}
 			)
+		)
+
+		val colorPicker = TopLevelDestination(
+			route = DestinationRoute.COLOR_PICKER
+		)
+
+		val iconPicker = TopLevelDestination(
+			route = DestinationRoute.ICON_PICKER
 		)
 	}
 

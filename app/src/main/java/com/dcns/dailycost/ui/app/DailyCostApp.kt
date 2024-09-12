@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -41,9 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dcns.dailycost.MainActivity
 import com.dcns.dailycost.R
@@ -64,7 +65,9 @@ import com.dcns.dailycost.navigation.OnboardingNavHost
 import com.dcns.dailycost.navigation.home.CategoriesNavigation
 import com.dcns.dailycost.navigation.home.CategoryNavigation
 import com.dcns.dailycost.navigation.home.ChangeLanguageNavigation
+import com.dcns.dailycost.navigation.home.ColorPickerNavigation
 import com.dcns.dailycost.navigation.home.DashboardNavigation
+import com.dcns.dailycost.navigation.home.IconPickerNavigation
 import com.dcns.dailycost.navigation.home.NoteNavigation
 import com.dcns.dailycost.navigation.home.NotesNavigation
 import com.dcns.dailycost.navigation.home.NotificationNavigation
@@ -84,6 +87,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @OptIn(ExperimentalMaterialNavigationApi::class, ExperimentalMaterialApi::class)
 @Composable
@@ -134,118 +138,31 @@ fun DailyCostApp(
 		}
 	}
 
-	val navBackStackEntry by navController.currentBackStackEntryAsState()
-
 	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 		RequestPostPermission()
 	}
 
-	// Update current destination
-	// digunakan di drawer
-	LaunchedEffect(navBackStackEntry) {
-		navBackStackEntry?.destination?.route?.let { route ->
-			viewModel.onAction(DailyCostAppAction.UpdateCurrentDestinationRoute(route))
+	DisposableEffect(navController) {
+		val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+			destination.route?.let {
+				viewModel.onAction(DailyCostAppAction.UpdateCurrentDestinationRoute(it))
+			}
+		}
+
+		navController.addOnDestinationChangedListener(listener)
+		onDispose {
+			navController.removeOnDestinationChangedListener(listener)
 		}
 	}
 
-	// Digunakan untuk menavigasi ke route yang disimpan di savedStateHandle.
-	// Ketika aplikasi dikill oleh sistem, currentRoute akan disimpan di savedStateHandle
-	// Dan direstore ketika user kembali ke aplikasi
-	LaunchedEffect(state.currentDestinationRoute) {
-		navBackStackEntry?.destination?.route?.let { currentRoute ->
-			if (state.currentDestinationRoute != currentRoute && state.currentDestinationRoute.isNotBlank()) {
-				navController.navigate(state.currentDestinationRoute)
-			}
-		}
-	}
-
-	LaunchedEffect(state.isSecureAppEnabled, state.isBiometricAuthenticated) {
-		val canAuth = DailyCostBiometricManager.canAuthenticateWithAuthenticators(context)
-
-		// Jika user mengaktifkan secure app, dan
-		// belum terautentikasi (awal membuka aplikasi), dan
-		// device support biometric authentication
-		if (state.isSecureAppEnabled && !state.isBiometricAuthenticated && canAuth) {
-			// Tampilkan autentikasi
-			biometricManager.showAuthentication(
-				title = context.getString(R.string.authentication),
-				subtitle = "",
-				description = "",
-				negativeButtonText = context.getString(R.string.cancel)
-			)
-		} else viewModel.onAction(DailyCostAppAction.IsBiometricAuthenticated(true))
-	}
-
-	// Navigasi otomatis
-	LaunchedEffect(
-		state.userCredential,
-		state.isFirstInstall,
-		state.userFirstEnteredApp,
-		state.canNavigate
-	) {
-		// Jika user pertama kali masuk ke aplikasi, dan
-		// first install tidak null (true atau false), dan
-		// user credential tidak null.
-		// Jika salah satunya null, maka user akan tetap berada di `SplashScreen`
-		if (
-			state.userFirstEnteredApp &&
-			state.isFirstInstall != null &&
-			state.userCredential != null &&
-			state.canNavigate
-		) {
-			// Jika user telah login, biarkan, karena start destination ke dashboard
-			if (state.userCredential!!.isLoggedIn) {
-				return@LaunchedEffect
-			}
-
-			val dest = when {
-				// Jika pertama kali install, ke onboarding
-				state.isFirstInstall == true -> TopLevelDestinations.Onboarding.onboarding
-				// Jika tidak, ke login screen
-				else -> TopLevelDestinations.LoginRegister.login
-			}
-
-			navActions.navigateTo(dest)
-
-			// Update user pertama kali masuk ke aplikasi ke false
-			viewModel.onAction(DailyCostAppAction.UpdateUserFirstEnteredApp(false))
-		}
-	}
-
-	LaunchedEffect(viewModel) {
-		viewModel.uiEvent.collect { event ->
-			when (event) {
-				is DailyCostAppUiEvent.LanguageChanged -> {
-					if (state.userCredential?.isLoggedIn == true) {
-						navActions.navigateTo(TopLevelDestinations.Home.dashboard)
-					}
-				}
-				is DailyCostAppUiEvent.NavigateTo -> {
-					navActions.navigateTo(event.dest)
-				}
-				is DailyCostAppUiEvent.HandleDeepLink -> {
-					// Manipulasi uri
-					val uri = when {
-						event.uri.pathSegments.contains("pengeluaran") -> event.uri.toString().let { s ->
-							"$s/${TransactionType.Expense}".toUri()
-						}
-						else -> event.uri
-					}
-
-					navActions.navigateTo(
-						uri = uri,
-						builder = defaultNavOptionsBuilder(
-							popTo = TopLevelDestinations.Home.dashboard,
-							inclusivePopUpTo = false
-						)
-					)
-				}
-			}
-		}
-	}
+	Observe(
+		state = state,
+		viewModel = viewModel,
+		navActions = navActions,
+		biometricManager = biometricManager
+	)
 
 	DailyCostTheme(darkTheme) {
-
 		SideEffect {
 			systemUiController.setSystemBarsColor(
 				color = Color.Transparent,
@@ -303,13 +220,114 @@ fun DailyCostApp(
 
 }
 
+/**
+ * digunakan untuk mengamati perubahan pada state atau destinasi
+ * kegunaan lebih lanjut bisa dilihat di comment
+ */
+@Composable
+private fun Observe(
+	viewModel: DailyCostAppViewModel,
+	state: DailyCostAppState,
+	biometricManager: DailyCostBiometricManager,
+	navActions: NavigationActions
+) {
+
+	val context = LocalContext.current
+
+	LaunchedEffect(state.isSecureAppEnabled, state.isBiometricAuthenticated) {
+		val canAuth = DailyCostBiometricManager.canAuthenticateWithAuthenticators(context)
+
+		// Jika user mengaktifkan secure app, dan
+		// belum terautentikasi (awal membuka aplikasi), dan
+		// device support biometric authentication
+		if (state.isSecureAppEnabled && !state.isBiometricAuthenticated && canAuth) {
+			// Tampilkan autentikasi
+			biometricManager.showAuthentication(
+				title = context.getString(R.string.authentication),
+				subtitle = "",
+				description = "",
+				negativeButtonText = context.getString(R.string.cancel)
+			)
+		} else viewModel.onAction(DailyCostAppAction.IsBiometricAuthenticated(true))
+	}
+
+	// Navigasi otomatis
+	LaunchedEffect(
+		state.userCredential,
+		state.isFirstInstall,
+		state.userFirstEnteredApp,
+		state.canNavigate
+	) {
+		// Jika user pertama kali masuk ke aplikasi, dan
+		// first install tidak null (true atau false), dan
+		// user credential tidak null.
+		// Jika salah satunya null, maka user akan tetap berada di `SplashScreen`
+		if (
+			state.userFirstEnteredApp &&
+			state.isFirstInstall != null &&
+			state.userCredential != null &&
+			state.canNavigate
+		) {
+			// Jika user telah login, biarkan, karena start destination ke dashboard
+			if (state.userCredential.isLoggedIn) {
+				return@LaunchedEffect
+			}
+
+			Timber.i("ruwt: user not logged in")
+
+			val dest = when {
+				// Jika pertama kali install, ke onboarding
+				state.isFirstInstall == true -> TopLevelDestinations.Onboarding.onboarding
+				// Jika tidak, ke login screen
+				else -> TopLevelDestinations.LoginRegister.login
+			}
+
+			navActions.navigateTo(dest)
+
+			// Update user pertama kali masuk ke aplikasi ke false
+			viewModel.onAction(DailyCostAppAction.UpdateUserFirstEnteredApp(false))
+		}
+	}
+
+	LaunchedEffect(viewModel) {
+		viewModel.uiEvent.collect { event ->
+			when (event) {
+				is DailyCostAppUiEvent.LanguageChanged -> {
+					if (state.userCredential?.isLoggedIn == true) {
+						navActions.navigateTo(TopLevelDestinations.Home.dashboard)
+					}
+				}
+				is DailyCostAppUiEvent.NavigateTo -> {
+					navActions.navigateTo(event.dest)
+				}
+				is DailyCostAppUiEvent.HandleDeepLink -> {
+					// Manipulasi uri
+					val uri = when {
+						event.uri.pathSegments.contains("pengeluaran") -> event.uri.toString().let { s ->
+							"$s/${TransactionType.Expense}".toUri()
+						}
+						else -> event.uri
+					}
+
+					navActions.navigateTo(
+						uri = uri,
+						builder = defaultNavOptionsBuilder(
+							popTo = TopLevelDestinations.Home.dashboard,
+							inclusivePopUpTo = false
+						)
+					)
+				}
+			}
+		}
+	}
+}
+
 @Composable
 private fun DailyCostNavHost(
 	navController: NavHostController,
 	navActions: NavigationActions,
 	onNavigationIconClicked: () -> Unit
 ) {
-
 	NavHost(
 		navController = navController,
 		startDestination = TopLevelDestinations.Home.ROOT_ROUTE
@@ -337,6 +355,8 @@ private fun DailyCostNavHost(
 			WalletsNavigation(navActions)
 			NoteNavigation(navActions)
 			NotificationNavigation(navActions)
+			ColorPickerNavigation(navActions)
+			IconPickerNavigation(navActions)
 
 			DashboardNavigation(
 				navigationActions = navActions,

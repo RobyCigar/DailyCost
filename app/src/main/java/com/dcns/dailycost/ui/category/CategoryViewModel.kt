@@ -13,6 +13,7 @@ import com.dcns.dailycost.foundation.extension.uppercaseFirstLetterInWord
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -39,14 +40,11 @@ class CategoryViewModel @Inject constructor(
 				categoryUseCases.getLocalCategoryUseCase(
 					getCategoryBy = GetCategoryBy.ID(id)
 				).map { it.getOrNull(0) }
-			}.filterNotNull().collect { category ->
+			}.filterNotNull().collectLatest { category ->
 					Timber.i("Received category: $category")
 					updateState {
 						copy(
-							id = category.id,
-							name = category.name,
-							icon = category.icon,
-							default = category.defaultCategory
+							category = category
 						)
 					}
 				}
@@ -55,7 +53,7 @@ class CategoryViewModel @Inject constructor(
 		viewModelScope.launch(Dispatchers.IO) {
 			deliveredActionMode
 				.filterNotNull()
-				.collect { mode ->
+				.collectLatest { mode ->
 					updateState {
 						copy(
 							actionMode = mode
@@ -71,7 +69,9 @@ class CategoryViewModel @Inject constructor(
 				viewModelScope.launch {
 					updateState {
 						copy(
-							icon = action.icon
+							category = category.copy(
+								icon = action.icon
+							)
 						)
 					}
 				}
@@ -79,8 +79,19 @@ class CategoryViewModel @Inject constructor(
 			is CategoryAction.SetName -> viewModelScope.launch {
 				updateState {
 					copy(
-						name = action.name,
-						nameError = action.name.isBlank()
+						nameError = action.name.isBlank(),
+						category = category.copy(
+							name = action.name
+						)
+					)
+				}
+			}
+			is CategoryAction.SetColor -> viewModelScope.launch {
+				updateState {
+					copy(
+						category = category.copy(
+							colorArgb = action.argb
+						)
 					)
 				}
 			}
@@ -88,7 +99,7 @@ class CategoryViewModel @Inject constructor(
 				viewModelScope.launch(Dispatchers.IO) {
 					val mState = state.value
 
-					if (mState.name.isBlank()) {
+					if (mState.category.name.isBlank()) {
 						updateState {
 							copy(
 								nameError = true
@@ -102,8 +113,9 @@ class CategoryViewModel @Inject constructor(
 						inputActionType = InputActionType.Insert,
 						Category(
 							id = Random.nextInt(),
-							name = mState.name.trim().uppercaseFirstLetterInWord(),
-							icon = mState.icon
+							name = mState.category.name.trim().uppercaseFirstLetterInWord(),
+							icon = mState.category.icon,
+							colorArgb = mState.category.colorArgb
 						)
 					)
 

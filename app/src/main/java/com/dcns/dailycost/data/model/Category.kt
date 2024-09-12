@@ -2,6 +2,8 @@ package com.dcns.dailycost.data.model
 
 import android.os.Parcelable
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import com.dcns.dailycost.R
 import com.dcns.dailycost.data.CategoryIcon
@@ -11,9 +13,10 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 data class Category(
 	val id: Int,
-	var name: String,
-	var icon: CategoryIcon,
-	var defaultCategory: Boolean = false
+	val name: String,
+	val icon: CategoryIcon,
+	val colorArgb: Int = Color.Transparent.toArgb(),
+	val defaultCategory: Boolean = false
 ): Parcelable {
 
 	/**
@@ -30,7 +33,6 @@ data class Category(
 			LocalCategoryDataProvider.Expense.shopping.id -> stringResource(id = R.string.shopping)
 			LocalCategoryDataProvider.Expense.transport.id -> stringResource(id = R.string.transport)
 			LocalCategoryDataProvider.Expense.electronic.id -> stringResource(id = R.string.electronic)
-			LocalCategoryDataProvider.Expense.bill.id -> stringResource(id = R.string.bill)
 			LocalCategoryDataProvider.Expense.entertainment.id -> stringResource(id = R.string.entertainment)
 			LocalCategoryDataProvider.Expense.gadget.id -> stringResource(id = R.string.gadget)
 			LocalCategoryDataProvider.other.id -> stringResource(id = R.string.other)
